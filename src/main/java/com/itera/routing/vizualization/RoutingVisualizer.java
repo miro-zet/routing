@@ -248,7 +248,7 @@ public class RoutingVisualizer extends Application {
 
                 settled.setText(String.valueOf(dijkstraFwd.getVisited().size() + dijkstraBckg.getVisited().size()));
                 drawNode(dijkstraFwd.getLastVisited(), gc, 2 * nodeSize, Color.RED);
-                drawNode(dijkstraBckg.getLastVisited(), gc, 2 * nodeSize, Color.GREEN);
+                drawNode(dijkstraBckg.getLastVisited(), gc, 2 * nodeSize, Color.YELLOW);
 
             }
         ));
@@ -299,7 +299,7 @@ public class RoutingVisualizer extends Application {
                     .collect(Collectors.toSet());
 
                 drawNode(dijkstraFwd.getLastVisited(), gc, 2 * nodeSize, Color.RED);
-                drawNode(dijkstraBckg.getLastVisited(), gc, 2 * nodeSize, Color.GREEN);
+                drawNode(dijkstraBckg.getLastVisited(), gc, 2 * nodeSize, Color.YELLOW);
                 settled.setText(String.valueOf(dijkstraFwd.getVisited().size() + dijkstraBckg.getVisited().size()));
 
                 if (!overlap.isEmpty()) {
