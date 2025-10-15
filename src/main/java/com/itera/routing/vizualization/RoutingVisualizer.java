@@ -11,6 +11,7 @@ import com.itera.routing.topology.Edge;
 import com.itera.routing.topology.Graph;
 import com.itera.routing.topology.Node;
 import com.itera.routing.utils.DistanceUtils;
+import com.sun.jdi.ShortType;
 import io.vavr.control.Try;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
@@ -35,6 +36,8 @@ import lombok.ToString;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -264,6 +267,7 @@ public class RoutingVisualizer extends Application {
     class Mins {
         private double min;
         private Node node;
+        private Edge edge;
     }
 
     void chDijkstra(GraphicsContext gc, int pause, TextField settled, TextField length) {
@@ -284,7 +288,7 @@ public class RoutingVisualizer extends Application {
                                                                                        .get(neightbor));
 
 
-        final Mins mins = new Mins(Double.MAX_VALUE, null);
+        final Mins mins = new Mins(Double.MAX_VALUE, null, null);
         timeline = new Timeline(new KeyFrame(
             Duration.millis(pause),
             event -> {
@@ -297,12 +301,13 @@ public class RoutingVisualizer extends Application {
                 Set<Node> overlap = visitedByFwd.stream()
                     .filter(visitedByBckg::contains)
                     .collect(Collectors.toSet());
+                Set<Edge> connectedEdges =  getConnectedEdges(dijkstraFwd, dijkstraBckg);
 
                 drawNode(dijkstraFwd.getLastVisited(), gc, 2 * nodeSize, Color.RED);
                 drawNode(dijkstraBckg.getLastVisited(), gc, 2 * nodeSize, Color.YELLOW);
                 settled.setText(String.valueOf(dijkstraFwd.getVisited().size() + dijkstraBckg.getVisited().size()));
 
-                if (!overlap.isEmpty()) {
+                if (!overlap.isEmpty() || !connectedEdges.isEmpty()) {
 
                     log.info("found overlap: {}", overlap);
                     for (Node node : overlap) {
@@ -316,6 +321,18 @@ public class RoutingVisualizer extends Application {
                         }
                     }
 
+                    for (Edge e : connectedEdges) {
+                        double d1 = dijkstraFwd.getDistances().get(e.getFrom());
+                        double d2 = dijkstraBckg.getDistances().get(e.getTo());
+                        double d = d1 + d2 + e.getWeight();
+
+                        if (d < mins.getMin()) {
+                            mins.setMin(d);
+                            mins.setEdge(e);
+                            log.info("updating min: {} to {}, {}", mins, d, e);
+                        }
+                    }
+
                     double fwdMinKey = dijkstraFwd.getCandidateMinKey();
                     double bckgMinKey = dijkstraBckg.getCandidateMinKey();
                     log.info("fwdMinKey: {}, bckgMinKey: {}", fwdMinKey, bckgMinKey);
@@ -325,19 +342,29 @@ public class RoutingVisualizer extends Application {
                         log.info("stopping timeline");
                         log.info("mins: {}", mins);
 
-                        ShortestPath shortestPathFwd = dijkstraFwd.findShortestPath(from, mins.getNode());
-                        ShortestPath shortestPathBckg = dijkstraBckg.findShortestPath(to, mins.getNode());
-                        ShortestPath sp = shortestPathFwd.add(shortestPathBckg);
+                        ShortestPath sp = null;
+                        if (mins.getNode() != null) {
+                            ShortestPath shortestPathFwd = dijkstraFwd.findShortestPath(from, mins.getNode());
+                            ShortestPath shortestPathBckg = dijkstraBckg.findShortestPath(to, mins.getNode());
+                            sp = shortestPathFwd.add(shortestPathBckg);
+                        }
+
+                        if (mins.getEdge() != null) {
+                            ShortestPath shortestPathFwd = dijkstraFwd.findShortestPath(from, mins.getEdge().getFrom());
+                            shortestPathFwd = shortestPathFwd.add(mins.edge);
+                            ShortestPath shortestPathBckg = dijkstraBckg.findShortestPath(to, mins.getEdge().getTo());
+                            sp = shortestPathFwd.add(shortestPathBckg);
+                        }
 
                         for (String e : sp.getEdges()) {
-                            drawEdge(chGraph.getEdges().get(e), gc, 7, Color.BLUE);
+                            drawEdge(chGraph.getEdges().get(e), gc, 8, Color.BLUE);
                         }
 
                         List<Edge> originals = chData.getOriginalEdges(sp.getEdges().stream()
                             .map(id -> chGraph.getEdges().get(id))
                             .toList());
                         for (Edge e : originals) {
-                            drawEdge(e, gc, 4, Color.RED, 10d);
+                            drawEdge(e, gc, 4, Color.RED);
                         }
 
                         length.setText(String.valueOf((int) sp.getLength()));
@@ -350,6 +377,32 @@ public class RoutingVisualizer extends Application {
         ));
         timeline.setCycleCount(Timeline.INDEFINITE);
         timeline.play();
+
+    }
+
+    private Set<Edge> getConnectedEdges(Dijkstra fwd, Dijkstra bckg) {
+
+        Node lastFwd = fwd.getLastVisited();
+        Node lastBckg = bckg.getLastVisited();
+
+        Set<Edge> result = new HashSet<>();
+        for (Node n : bckg.getVisited()) {
+            for (Edge out : lastFwd.getOutEdges()) {
+                if (out.getTo().equals(n)) {
+                    result.add(out);
+                }
+            }
+        }
+
+        for (Node n : fwd.getVisited()) {
+            for (Edge in : lastBckg.getInEdges()) {
+                if (in.getFrom().equals(n)) {
+                    result.add(in);
+                }
+            }
+        }
+
+        return result;
 
     }
 
@@ -447,7 +500,7 @@ public class RoutingVisualizer extends Application {
 
     void drawEdge(Edge e, GraphicsContext gc, int lineWidth, Color color) {
 
-       drawEdge(e, gc, lineWidth, color, null);
+        drawEdge(e, gc, lineWidth, color, null);
     }
 
     void drawEdge(Edge e, GraphicsContext gc, int lineWidth, Color color, Double dash) {

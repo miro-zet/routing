@@ -30,4 +30,15 @@ public class ShortestPath {
 
         return sum;
     }
+
+    public ShortestPath add(Edge edge) {
+        ShortestPath sum = new ShortestPath();
+        sum.setLength(this.getLength() + edge.getWeight());
+
+        sum.setEdges(new ArrayList<>(edges));
+        sum.getEdges().add(edge.getId());
+
+        sum.setNodes(new ArrayList<>(nodes));
+        return sum;
+    }
 }
